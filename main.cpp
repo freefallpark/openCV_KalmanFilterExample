@@ -5,43 +5,48 @@
 
 namespace plt = matplotlibcpp;
 
-/*
-// Kalman Filter 'memory' variables
-double x_hat = 0;   // predicted state estimate
-double P = 1;       // predicted error covariance
-//Tunable Parameters
-double Q = 0.001;   // process noise covariance
-double R = 10;      // measurement noise covariance
-*/
 
-
-int main()
-{
+int main(){
     //init KF
-    cv::KalmanFilter kf(2,2,0);
-    // Define transition matrix, measurement matrix, process noise, and measurement noise
-    kf.transitionMatrix = (cv::Mat_<float>(2, 2) << 1, 0, 0, 1); // Identity matrix
-    kf.measurementMatrix = (cv::Mat_<float>(2, 2) << 1, 0, 0, 1); // Identity matrix
-    kf.processNoiseCov = (cv::Mat_<float>(2, 2) << 0.001, 0, 0, 0.001); // Process noise covariance
-    kf.measurementNoiseCov = (cv::Mat_<float>(2, 2) << 10, 0, 0, 10); // Measurement noise covariance
+    cv::KalmanFilter kf(4,2,0);
+    // Because we're only Measureing x and y positins, and not x and y velocities, 2, 2 is ok
+    kf.transitionMatrix = (cv::Mat_<float>(4,4) <<  1, 0, 0, 0,
+                                                    0, 1, 0, 0,
+                                                    0, 0, 1, 0,
+                                                    0, 0, 0, 1);
+
+    kf.measurementMatrix = (cv::Mat_<float>(2,4) << 1, 0, 0, 0,
+                                                    0, 1, 0, 0);
+
+    //Tuneable Parameters:
+    float processCovariance = 0.001;
+    float measurementCovariance = 10;
+    cv::setIdentity(kf.processNoiseCov, cv::Scalar::all(processCovariance));
+    cv::setIdentity(kf.measurementNoiseCov, cv::Scalar::all(measurementCovariance));
 
 
-    // Read noisy input signal from CSV file
-    std::ifstream file("../xs_kyle.csv");
+    // Import Fake y-axis data, create artificial noise and just step x axis in increments of 1
+    std::ifstream file("../fakeData.csv");
     std::vector<cv::Point2f> noisySignal;
     std::string line;
     float x = 0.0;
     while (std::getline(file, line)) {
-        cv::Point2f pt;
+        //Create Fake noise (data wasn't 'noisy' enough):
         float rnum = rand()&10;
         rnum /=10;
+
+        //load Data in to cv::Point2f
         auto sig = (float)std::stod(line);
-        pt = cv::Point2f(x,sig+rnum);
+        cv::Point2f pt = cv::Point2f(x,sig+rnum);
+
+        //Push to Vector
         noisySignal.push_back(pt);
+
+        //Step x axis
         x += 1;
     }
 
-    //Filter:
+    //Filter Noisy Data:
     std::vector<cv::Point2f> filtered_signal;
     for(const cv::Point2f& measurement:noisySignal){
         cv::Mat prediction  = kf.predict();
